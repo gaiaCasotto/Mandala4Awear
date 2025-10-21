@@ -1,0 +1,13 @@
+#ignore Python cache
+__pycache__/
+*.py[cod]
+#Ignore OS stuff
+.DS_store
+#ignore ImGui settings
+imgui.ini
+#ignore firebase keys
+*firebase-adminsdk-*.json
+*.serviceAccountKey.json
+awear-test-firebase-adminsdk-zj0ib-1d57826723.json
+#ignore logs
+*.log

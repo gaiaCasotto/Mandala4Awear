@@ -160,10 +160,43 @@ def render(iTime: ti.f32):
         img[x, y] = ti.min(color, vec3(1.0, 1.0, 1.0))
 
 
+#------------------ DEBOUNCING -----------------------
+#debouncing to avoid rapid flips of state -> rapid flips of parameters
+class StateDebouncer:
+    """
+    Require a state to persist for `hold_sec` before accepting it.
+    """
+    def __init__(self, initial="calm", hold_sec=0.75):
+        self.current = norm_state(initial)
+        self.candidate = self.current
+        self.hold_sec = hold_sec
+        self.accum = 0.0
+
+    def update(self, new_state: str, dt: float) -> str:
+        s = norm_state(new_state)
+        if s == self.current:
+            # stable, clear any candidate timing
+            self.candidate = s
+            self.accum = 0.0
+            return self.current
+
+        if s != self.candidate:
+            # new candidate – start counting
+            self.candidate = s
+            self.accum = 0.0
+        else:
+            # same candidate continuing; accumulate time
+            self.accum += max(dt, 0.0)
+            if self.accum >= self.hold_sec:
+                # accept transition
+                self.current = self.candidate
+                self.accum = 0.0
+
+        return self.current
+
 
 #------------------- main loop with eeg from file ---------------------
         
-
 import numpy as np
 import argparse
 import time
@@ -225,21 +258,22 @@ def blend_params(s: float):
                                     lerp(pg, qg, s),
                                     lerp(pb, qb, s)])
 
-def map_ratio_to_target(ratio: float,
-                        r_min: float = 4.0,   # calm boundary  (HF/LF small)
-                        r_max: float = 9.0    # stressed bound (HF/LF large)
-                        ) -> float:
-    """
-    Map classifier ratio -> [0..1] target intensity.
-    Log-space normalization makes it perceptual; smoothstep eases the ends.
-    """
-    if ratio is None or not np.isfinite(ratio) or ratio <= 0:
-        return 0.0  # treat bad values as calm
 
-    x = (np.log(ratio) - np.log(r_min)) / (np.log(r_max) - np.log(r_min))
-    x = float(np.clip(x, 0.0, 1.0))
-    return smoothstep01(x)
+def norm_state(name: str) -> str:
+    if not name:
+        return "CALM"
+    return str(name).strip().lower().replace(" ", "_")
 
+# Discrete mapping: state -> target_s in [0..1]
+STATE_LEVEL = {
+    "calm":                  0.00,
+    "mod-stress":            0.33,
+    "high-stress":           0.66,
+    "extreme-stress":        1.00
+}
+
+def state_to_target(state: str) -> float:
+    return STATE_LEVEL.get(norm_state(state), 0.0)
 
 
 
@@ -277,6 +311,7 @@ def main():
 
     # init fields
     blend_params(smooth_s)
+    debouncer = StateDebouncer(initial="calm", hold_sec=0.75)  # tune hold_sec if needed
 
     t  = 0.0
     dt = 1.0 / 60.0 
@@ -291,15 +326,25 @@ def main():
         real_dt   = now - last_time
         last_time = now
 
-        raw_target = map_ratio_to_target(ratio, r_min=0.1, r_max=9.0)
-        tau        = tau_rise if raw_target > smooth_s else tau_fall
-        smooth_s   = exp_smooth(smooth_s, raw_target, real_dt, tau)
-        
+        # Use classifier 'state' only (ignore ratio for driving)
+        stable_state = debouncer.update(state, real_dt)          # debounced state
+        raw_target   = state_to_target(stable_state)       # discrete -> scalar in [0..1]
+        # Smooth the discrete target for nice transitions
+        tau      = tau_rise if raw_target > smooth_s else tau_fall
+        smooth_s = exp_smooth(smooth_s, raw_target, real_dt, tau)
+
+        # Push blended parameters
         blend_params(smooth_s)
 
-        with gui.sub_window("Readout", 0.70, 0.02, 0.27, 0.16):
-            gui.text(f"State: {state}  |  HF/LF: {ratio:.3f}" if ratio == ratio else f"State: {state}")
-            gui.text(f"Target(raw): {raw_target:.3f}  |  Smoothed: {smooth_s:.3f}")
+        print("state:", state)
+        print("stable state", stable_state)
+
+        with gui.sub_window("Readout", 0.70, 0.02, 0.27, 0.18):
+            gui.text(f"Raw state: {state}")
+            gui.text(f"Stable state: {stable_state}")
+            if ratio == ratio:
+                gui.text(f"HF/LF: {ratio:.3f}")
+            gui.text(f"Target(raw): {raw_target:.3f} | Smoothed: {smooth_s:.3f}")
 
         #--------------render---------------------
         render(t)
