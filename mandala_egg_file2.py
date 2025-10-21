@@ -1,29 +1,3 @@
-# heart_plasma_taichi.py
-
-
-"""
-this CODE does:
-1) takes the hf/lf ratio to determine stress
-2) Internally, computes a smoothed scalar smooth_s using
-exponential low-pass with asymmetric time constants 
-(tau_rise=0.25, tau_fall=0.60).
-3) for every frame, blends CALM→STRESSED for:
-                time multiplier, frequency, contrast, phase jitter, 
-                animation speed, octaves, heart SDF weight, and palette bias (RGB).
-4) The animation time uses the blended anim_speed, 
-so even the tempo eases smoothly.
-
-
-Possible tweak ideas:
--> To make any single parameter react faster/slower than the rest, give it its own tau and run a separate exp_smooth for that 
-control instead of blending all from a common smooth_s.
--> to add a little “breathing” motion even when target is steady, 
-add a tiny low-frequency wobble to target_s before smoothing (e.g., target_s + 0.03*sin(0.2*t) and clamp).
-
-
-"""
-
-
 import taichi as ti
 import math
 import time
@@ -241,14 +215,14 @@ def exp_smooth(current: float, target: float, real_dt: float, tau: float) -> flo
 # Use your existing CALM/STRESSED, add two more:
 PRESETS = {
     "calm": {
-        "time_mul": 0.5, "freq_mul": 0.500, "contrast": 0.500,
+        "time_mul": 0.5, "freq_mul": 1.0, "contrast": 0.500,
         "phase_jitter": 1.436, "anim_speed": 0.063, "octaves": 2,
-        "palette_bias": (-0.4, -0.4, 0.4), "heart_weight": 0.12,
+        "palette_bias": (-0.4, -0.4, 0.4), "heart_weight": 0.20,
     },
     "mod_stress": {   # a bit livelier/warmer than calm
-        "time_mul": 0.5, "freq_mul": 0.85, "contrast": 0.75,
+        "time_mul": 0.5, "freq_mul": 1.0, "contrast": 0.75,
         "phase_jitter": 1.50, "anim_speed": 0.25, "octaves": 3,
-        "palette_bias": (-0.10, -0.20, 0.10), "heart_weight": 0.18,
+        "palette_bias": (-0.10, -0.20, 0.10), "heart_weight": 0.20,
     },
     "high_stress": {  # turn it up further
         "time_mul": 0.5, "freq_mul": 1.00, "contrast": 0.80,
@@ -256,9 +230,9 @@ PRESETS = {
         "palette_bias": (0.33, -0.20, -0.20), "heart_weight": 0.20,
     },
     "extreme_stress": {     # your current STRESSED
-        "time_mul": 0.5, "freq_mul": 1.041, "contrast": 0.873,
+        "time_mul": 0.5, "freq_mul": 1.0, "contrast": 0.873,
         "phase_jitter": 1.469, "anim_speed": 2.000, "octaves": 4,
-        "palette_bias": (0.40, -0.40, -0.40), "heart_weight": 0.260,
+        "palette_bias": (0.40, -0.40, -0.40), "heart_weight": 0.20,
     },
 }
 
