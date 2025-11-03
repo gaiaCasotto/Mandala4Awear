@@ -60,7 +60,7 @@ def palette(t: ti.f32) -> vec3:
     palette = base + palette_bias[None]
     return palette
 
-@ti.func
+@ti.func #returns a signed distance shaped like a heart
 def sdHeart(p_in: vec2) -> ti.f32:
     # p.x = abs(p.x)
     p = vec2(ti.abs(p_in.x), p_in.y)
